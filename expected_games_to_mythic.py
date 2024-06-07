@@ -7,7 +7,7 @@ sys.stdout = open('outputfile.txt', 'w')
 
 # Note: I don't have a lot of experience with Python yet, so suggestions for improving the code are welcome!
 
-relevant_ranks = ['bronze', 'silver', 'gold']
+relevant_ranks = ['bronze', 'silver', 'gold', 'platinum', 'diamond']
 DEBUG = False
 
 
@@ -33,7 +33,7 @@ steps_lost_with_loss = {
 }
 
 
-def expected_games_without_tier_protection(game_win_prob, rank, bestof):
+def expected_games_without_tier_protection(game_win_prob, _rank, _bestof):
     """The setting without tier protection is relatively easy. For bestof = 1, this function gives the exact expected
     number of games to reach the next rank in best-of-one. For bestof = 3, this function gives an approximation for
     the expected number of games to reach the next rank in best-of-three. This approximation assumes that any match
@@ -54,29 +54,29 @@ def expected_games_without_tier_protection(game_win_prob, rank, bestof):
     """
     multiplier = 1
     winrate = game_win_prob
-    if bestof == 3:
+    if _bestof == 3:
         multiplier = 2
         winrate = game_win_prob * game_win_prob + 2 * game_win_prob * game_win_prob * (1 - game_win_prob)
     lossrate = 1 - winrate
 
-    steps_per_rank = {k: v * 4 for k, v in steps_per_tier.items()}
-    A = np.zeros((steps_per_rank[rank], steps_per_rank[rank]))
-    b = np.ones(steps_per_rank[rank])
+    steps_per_rank = {k: v * 4 for k, v in STEP_PER_TIER.items()}
+    A = np.zeros((steps_per_rank[_rank], steps_per_rank[_rank]))
+    b = np.ones(steps_per_rank[_rank])
 
-    for n in range(0, steps_per_rank[rank]):
+    for n in range(0, steps_per_rank[_rank]):
         A[n, n] = 1
-        A[n, max(0, n - multiplier * steps_lost_with_loss[rank])] -= lossrate
-        if n + multiplier * steps_gained_with_win[rank] < steps_per_rank[rank]:
-            A[n, n + multiplier * steps_gained_with_win[rank]] -= winrate
+        A[n, max(0, n - multiplier * steps_lost_with_loss[_rank])] -= lossrate
+        if n + multiplier * steps_gained_with_win[_rank] < steps_per_rank[_rank]:
+            A[n, n + multiplier * steps_gained_with_win[_rank]] -= winrate
 
     x = np.linalg.solve(A, b)
-    if bestof == 1:
+    if _bestof == 1:
         return x[0]
-    if bestof == 3:
+    if _bestof == 3:
         return x[0] * 2.5
 
 
-def give_index(rank, tier, step, protection):
+def give_index(_rank, tier, step, protection):
     """The challenging aspect with tier protection is turning the three-dimensional state space into a single
     dimension, as required for solving the LP There surely is a better way to do this, but my convoluted method
     should at least work State is given as (tier, step, protection) For steps>=2, protection must be 0 For step 0 or
@@ -88,38 +88,38 @@ def give_index(rank, tier, step, protection):
     1, 2) Index 35 is (3, 1, 1) ... Index 41 is (1, 1, 1)
     """
     if protection == 0:
-        return (4 - tier) * steps_per_tier[rank] + step
+        return (4 - tier) * STEP_PER_TIER[_rank] + step
     if protection > 0 and step == 0:
-        return 4 * steps_per_tier[rank] + (3 - tier) * 3 + 3 - protection
+        return 4 * STEP_PER_TIER[_rank] + (3 - tier) * 3 + 3 - protection
     if protection > 0 and step == 1:
-        return 4 * steps_per_tier[rank] + 9 + (3 - tier) * 3 + 3 - protection
+        return 4 * STEP_PER_TIER[_rank] + 9 + (3 - tier) * 3 + 3 - protection
 
 
 def give_tier(index):
-    if index < 4 * steps_per_tier[rank]:
-        return 4 - (index // steps_per_tier[rank])
-    if 4 * steps_per_tier[rank] <= index < 4 * steps_per_tier[rank] + 9:
-        return 3 - (index - 4 * steps_per_tier[rank]) // 3
-    if index >= 4 * steps_per_tier[rank] + 9:
-        return 3 - (index - (4 * steps_per_tier[rank] + 9)) // 3
+    if index < 4 * STEP_PER_TIER[rank]:
+        return 4 - (index // STEP_PER_TIER[rank])
+    if 4 * STEP_PER_TIER[rank] <= index < 4 * STEP_PER_TIER[rank] + 9:
+        return 3 - (index - 4 * STEP_PER_TIER[rank]) // 3
+    if index >= 4 * STEP_PER_TIER[rank] + 9:
+        return 3 - (index - (4 * STEP_PER_TIER[rank] + 9)) // 3
 
 
 def give_step(index):
-    if index < 4 * steps_per_tier[rank]:
-        return index % steps_per_tier[rank]
-    if 4 * steps_per_tier[rank] <= index < 4 * steps_per_tier[rank] + 9:
+    if index < 4 * STEP_PER_TIER[rank]:
+        return index % STEP_PER_TIER[rank]
+    if 4 * STEP_PER_TIER[rank] <= index < 4 * STEP_PER_TIER[rank] + 9:
         return 0
-    if index >= 4 * steps_per_tier[rank] + 9:
+    if index >= 4 * STEP_PER_TIER[rank] + 9:
         return 1
 
 
 def give_protection(index):
-    if index < 4 * steps_per_tier[rank]:
+    if index < 4 * STEP_PER_TIER[rank]:
         return 0
-    if 4 * steps_per_tier[rank] <= index < 4 * steps_per_tier[rank] + 9:
-        return 3 - ((index - 4 * steps_per_tier[rank]) % 3)
-    if index >= 4 * steps_per_tier[rank] + 9:
-        return 3 - ((index - (4 * steps_per_tier[rank] + 9)) % 3)
+    if 4 * STEP_PER_TIER[rank] <= index < 4 * STEP_PER_TIER[rank] + 9:
+        return 3 - ((index - 4 * STEP_PER_TIER[rank]) % 3)
+    if index >= 4 * STEP_PER_TIER[rank] + 9:
+        return 3 - ((index - (4 * STEP_PER_TIER[rank] + 9)) % 3)
 
 
 def describe_state(index):
@@ -129,7 +129,7 @@ def describe_state(index):
     return "the state with tier " + tier + ", step " + step + ", and protection " + protection
 
 
-def expected_games_with_tier_protection(game_win_prob, rank, bestof):
+def expected_games_with_tier_protection(game_win_prob, _rank, _bestof):
     """The setting with tier protection is more involved. For bestof = 1, this function gives the exact expected
     number of games to reach the next rank in best-of-one. For bestof = 3, this function gives an approximation for
     the expected number of games to reach the next rank in best-of-three. This approximation assumes that any match
@@ -147,73 +147,73 @@ def expected_games_with_tier_protection(game_win_prob, rank, bestof):
     multiplier = 1
     winrate = game_win_prob
     protection = 3
-    if bestof == 3:
+    if _bestof == 3:
         multiplier = 2
         winrate = game_win_prob * game_win_prob + 2 * game_win_prob * game_win_prob * (1 - game_win_prob)
         protection = 1
     lossrate = 1 - winrate
 
-    steps_per_rank = {k: v * 4 for k, v in steps_per_tier.items()}
-    total_number_of_states = steps_per_rank[rank] + 3 * 3 + 3 * 3
+    steps_per_rank = {k: v * 4 for k, v in STEP_PER_TIER.items()}
+    total_number_of_states = steps_per_rank[_rank] + 3 * 3 + 3 * 3
     A = np.zeros((total_number_of_states, total_number_of_states))
     b = np.ones(total_number_of_states)
 
     for index in range(0, total_number_of_states):
         log("\n")
         log("Index number " + str(
-            give_index(rank, give_tier(index), give_step(index), give_protection(index))) + " is " + describe_state(
+            give_index(_rank, give_tier(index), give_step(index), give_protection(index))) + " is " + describe_state(
             index))
         A[index, index] = 1
-        if index + multiplier * steps_gained_with_win[rank] < steps_per_rank[rank]:
+        if index + multiplier * steps_gained_with_win[_rank] < steps_per_rank[_rank]:
             # This means that a win won't advance you to the next rank and that you don't have protection
-            if give_step(index) + multiplier * steps_gained_with_win[rank] < steps_per_tier[rank]:
+            if give_step(index) + multiplier * steps_gained_with_win[_rank] < STEP_PER_TIER[_rank]:
                 # With a win, move to the next step in the same tier
-                A[index, index + multiplier * steps_gained_with_win[rank]] -= winrate
-                log("--We take off winrate from " + describe_state(index + multiplier * steps_gained_with_win[rank]))
-            if give_step(index) + multiplier * steps_gained_with_win[rank] >= steps_per_tier[rank]:
+                A[index, index + multiplier * steps_gained_with_win[_rank]] -= winrate
+                log("--We take off winrate from " + describe_state(index + multiplier * steps_gained_with_win[_rank]))
+            if give_step(index) + multiplier * steps_gained_with_win[_rank] >= STEP_PER_TIER[_rank]:
                 # With a win, move to the next tier with protection, unless we're in Bronze Bo3 or Silver Bo3 and
                 # would end up in step 2+ with unnecessary protection
-                new_step_with_win = give_step(index) + multiplier * steps_gained_with_win[rank] - steps_per_tier[rank]
+                new_step_with_win = give_step(index) + multiplier * steps_gained_with_win[_rank] - STEP_PER_TIER[_rank]
                 proper_protection = protection if new_step_with_win < 2 else 0
-                A[index, give_index(rank, give_tier(index) - 1, new_step_with_win, proper_protection)] -= winrate
+                A[index, give_index(_rank, give_tier(index) - 1, new_step_with_win, proper_protection)] -= winrate
                 log("--We take off winrate from " + describe_state(
-                    give_index(rank, give_tier(index) - 1, new_step_with_win, proper_protection)))
-            A[index, max(0, index - multiplier * steps_lost_with_loss[rank])] -= lossrate
+                    give_index(_rank, give_tier(index) - 1, new_step_with_win, proper_protection)))
+            A[index, max(0, index - multiplier * steps_lost_with_loss[_rank])] -= lossrate
             log("--We take off lossrate from " + describe_state(
-                max(0, index - multiplier * steps_lost_with_loss[rank])))
-        if index + multiplier * steps_gained_with_win[rank] >= steps_per_rank[rank] and give_protection(index) == 0:
+                max(0, index - multiplier * steps_lost_with_loss[_rank])))
+        if index + multiplier * steps_gained_with_win[_rank] >= steps_per_rank[_rank] and give_protection(index) == 0:
             # This means that a win will advance you to the next rank
-            A[index, max(0, index - multiplier * steps_lost_with_loss[rank])] -= lossrate
+            A[index, max(0, index - multiplier * steps_lost_with_loss[_rank])] -= lossrate
             log("--We take off lossrate from " + describe_state(
-                max(0, index - multiplier * steps_lost_with_loss[rank])))
+                max(0, index - multiplier * steps_lost_with_loss[_rank])))
         if give_protection(index) > 0:
             # This means that you have protection
-            new_step_with_win = give_step(index) + multiplier * steps_gained_with_win[rank]
+            new_step_with_win = give_step(index) + multiplier * steps_gained_with_win[_rank]
             new_protection_with_win = 0 if new_step_with_win >= 2 else give_protection(index) - 1
-            if new_step_with_win < steps_per_tier[rank]:
+            if new_step_with_win < STEP_PER_TIER[_rank]:
                 # With a win, move to the next step in the same tier
-                A[index, give_index(rank, give_tier(index), new_step_with_win, new_protection_with_win)] -= winrate
+                A[index, give_index(_rank, give_tier(index), new_step_with_win, new_protection_with_win)] -= winrate
                 log("--We take off winrate from " + describe_state(
-                    give_index(rank, give_tier(index), new_step_with_win, new_protection_with_win)))
-            if new_step_with_win >= steps_per_tier[rank]:
+                    give_index(_rank, give_tier(index), new_step_with_win, new_protection_with_win)))
+            if new_step_with_win >= STEP_PER_TIER[_rank]:
                 # This should only happen in Bronze or Silver Bo3, but with a win, move to the next tier or rank
-                new_step_with_win = new_step_with_win - steps_per_tier[rank]
+                new_step_with_win = new_step_with_win - STEP_PER_TIER[_rank]
                 if give_tier(index) > 1:
                     proper_protection = protection if new_step_with_win < 2 else 0
-                    A[index, give_index(rank, give_tier(index) - 1, new_step_with_win, proper_protection)] -= winrate
+                    A[index, give_index(_rank, give_tier(index) - 1, new_step_with_win, proper_protection)] -= winrate
                     log("--We take off winrate from " + describe_state(
-                        give_index(rank, give_tier(index) - 1, new_step_with_win, proper_protection)))
-            A[index, give_index(rank, give_tier(index),
-                                max(0, give_step(index) - multiplier * steps_lost_with_loss[rank]),
+                        give_index(_rank, give_tier(index) - 1, new_step_with_win, proper_protection)))
+            A[index, give_index(_rank, give_tier(index),
+                                max(0, give_step(index) - multiplier * steps_lost_with_loss[_rank]),
                                 give_protection(index) - 1)] -= lossrate
             log("--We take off lossrate from " + describe_state(
-                give_index(rank, give_tier(index), max(0, give_step(index) - multiplier * steps_lost_with_loss[rank]),
+                give_index(_rank, give_tier(index), max(0, give_step(index) - multiplier * steps_lost_with_loss[_rank]),
                            give_protection(index) - 1)))
 
     x = np.linalg.solve(A, b)
-    if bestof == 1:
+    if _bestof == 1:
         return x[0]
-    if bestof == 3:
+    if _bestof == 3:
         return x[0] * 2.5
 
 
@@ -230,6 +230,14 @@ def run_simulation(game_win_prob, _rank, _bestof):
 
     Returns - a number that approximates the expected number of games to reach the next rank
     """
+    games_per_simulation = []
+    for _ in range(5000):
+        games_per_simulation.append(simulate_rank(_rank, _bestof, game_win_prob))
+
+    return np.mean(games_per_simulation)
+
+
+def simulate_rank(_rank, _bestof, game_win_prob):
     multiplier = 1
     winrate = game_win_prob
     protection = 3
@@ -238,93 +246,56 @@ def run_simulation(game_win_prob, _rank, _bestof):
         winrate = game_win_prob * game_win_prob + 2 * game_win_prob * game_win_prob * (1 - game_win_prob)
         protection = 1
 
-    games_per_simulation = []
-    for _ in range(5000):
-        curr_tier = 4
-        curr_step = 0
-        curr_protection = 0
-        match_count = 0
-        curr_wins = 0
-        curr_losses = 0
-        while True:
-            match_count += 1
-            if random.random() < winrate:
-                match_win = True
-                curr_wins += 1
-            else:
-                match_win = False
-                curr_losses += 1
-            if (match_win and curr_tier == 1
-                    and curr_step + multiplier * steps_gained_with_win[_rank] >= steps_per_tier[_rank]):
-                # Advance to the next rank
-                break
-            elif (match_win and curr_tier > 1
-                  and curr_step + multiplier * steps_gained_with_win[_rank] >= steps_per_tier[_rank]):
-                # Move to the next tier with protection
-                curr_tier -= 1
-                curr_protection = protection
-                curr_step = curr_step + multiplier * steps_gained_with_win[_rank] - steps_per_tier[_rank]
-            elif match_win and curr_step + multiplier * steps_gained_with_win[_rank] < steps_per_tier[_rank]:
-                # Move up steps in the same tier
-                curr_step += multiplier * steps_gained_with_win[_rank]
-                curr_protection -= 1
-            elif ((not match_win)
-                  and curr_step < multiplier * steps_lost_with_loss[_rank] and curr_protection <= 0 and curr_tier < 4):
-                # Fall back a tier
-                curr_step = steps_per_tier[_rank] - multiplier * steps_lost_with_loss[_rank]
-                curr_tier += 1
-            elif (not match_win) and curr_step < multiplier * steps_lost_with_loss[_rank] and curr_protection > 0:
-                # Remain at the start of the tier with reduced protection
-                curr_protection -= 1
-                curr_step = 0
-            elif (not match_win) and curr_step >= multiplier * steps_lost_with_loss[_rank]:
-                # Move down steps in the same tier
-                curr_step -= multiplier * steps_lost_with_loss[_rank]
-                curr_protection -= 1
-        if _bestof == 1:
-            games_per_simulation.append(match_count)
-        elif _bestof == 3:
-            games_per_match_won = (2 * game_win_prob * game_win_prob + 3 * 2 * game_win_prob * game_win_prob * (
-                    1 - game_win_prob)) / winrate
-            games_per_match_lost = (2 * (1 - game_win_prob) * (1 - game_win_prob) + 3 * 2 * (1 - game_win_prob) * (
-                    1 - game_win_prob) * game_win_prob) / (1 - winrate)
-            game_count = curr_wins * games_per_match_won + curr_losses * games_per_match_lost
-            games_per_simulation.append(game_count)
-    return np.mean(games_per_simulation)
+    curr_tier = 4
+    curr_step = curr_protection = match_count = curr_wins = curr_losses = 0
+    while True:
+        match_count += 1
+        if random.random() < winrate:
+            match_win = True
+            curr_wins += 1
+        else:
+            match_win = False
+            curr_losses += 1
+        if (match_win and curr_tier == 1
+                and curr_step + multiplier * steps_gained_with_win[_rank] >= STEP_PER_TIER[_rank]):
+            # Advance to the next rank
+            break
+        elif (match_win and curr_tier > 1
+              and curr_step + multiplier * steps_gained_with_win[_rank] >= STEP_PER_TIER[_rank]):
+            # Move to the next tier with protection
+            curr_tier -= 1
+            curr_protection = protection
+            curr_step = curr_step + multiplier * steps_gained_with_win[_rank] - STEP_PER_TIER[_rank]
+        elif match_win and curr_step + multiplier * steps_gained_with_win[_rank] < STEP_PER_TIER[_rank]:
+            # Move up steps in the same tier
+            curr_step += multiplier * steps_gained_with_win[_rank]
+            curr_protection -= 1
+        elif ((not match_win)
+              and curr_step < multiplier * steps_lost_with_loss[_rank] and curr_protection <= 0 and curr_tier < 4):
+            # Fall back a tier
+            curr_step = STEP_PER_TIER[_rank] - multiplier * steps_lost_with_loss[_rank]
+            curr_tier += 1
+        elif (not match_win) and curr_step < multiplier * steps_lost_with_loss[_rank] and curr_protection > 0:
+            # Remain at the start of the tier with reduced protection
+            curr_protection -= 1
+            curr_step = 0
+        elif (not match_win) and curr_step >= multiplier * steps_lost_with_loss[_rank]:
+            # Move down steps in the same tier
+            curr_step -= multiplier * steps_lost_with_loss[_rank]
+            curr_protection -= 1
 
+    if _bestof == 1:
+        return match_count
 
-# Do some checks for verification
-steps_per_tier = {
-    'bronze': 4,
-    'silver': 5,
-    'gold': 6,
-    'platinum': 7,
-    'diamond': 7
-}
+    games_per_match_won = (2 * game_win_prob * game_win_prob + 3 * 2 * game_win_prob * game_win_prob * (
+            1 - game_win_prob)) / winrate
+    games_per_match_lost = (2 * (1 - game_win_prob) * (1 - game_win_prob) + 3 * 2 * (1 - game_win_prob) * (
+            1 - game_win_prob) * game_win_prob) / (1 - winrate)
+    return curr_wins * games_per_match_won + curr_losses * games_per_match_lost
 
-rank = 'gold'
-bestof = 1
-win_prob = 0.55
-
-number_games_exact = expected_games_without_tier_protection(win_prob, rank, bestof)
-print(
-    f'Under Preseason 1 progression without tier protection, the exact E[games] required to go from the start of'
-    f' {rank.title()} to the next rank with a {win_prob * 100:.1f}% winrate is {number_games_exact:.3f}.')
-print(
-    'The correct number should be 195.364 games according to the work of others. So that is good, but things are easy '
-    'without tier protection. \n')
-
-for bestof in [1, 3]:
-    for rank in relevant_ranks:
-        number_games_exact = expected_games_with_tier_protection(win_prob, rank, bestof)
-        number_games_sim = run_simulation(win_prob, rank, bestof)
-        print(
-            f'Under Preseason 1 progression with tier protection, the "exact" E[games] to go from {rank.title()} to '
-            f'the next rank in best-of-{bestof} with a {win_prob * 100:.1f}% winrate is {number_games_exact:.3f}.')
-        print(f'The simulation estimates {number_games_sim:.3f} games. Seems close enough. \n')
 
 # Since everything checked out, let's get the Preseason 2 results for Limited.
-steps_per_tier = {
+STEP_PER_TIER = {
     'bronze': 4,
     'silver': 5,
     'gold': 5,
@@ -334,12 +305,11 @@ steps_per_tier = {
 
 # First, output the Limited results as semicolon separated values
 win_probs = [0.4 + i * 2 / 100 for i in range(0, 16)]
-bestof = 1
-print("LIMITED win_prob; bronze to silver; silver to gold; gold to platinum")
+print("LIMITED win_prob; bronze to silver; silver to gold; gold to platinum; platinum to diamond; diamond to mythic")
 for win_prob in win_probs:
     outputline = f'{win_prob:.3f}; '
     for rank in relevant_ranks:
-        outputline += f'{expected_games_with_tier_protection(win_prob, rank, bestof):.3f}; '
+        outputline += f'{expected_games_with_tier_protection(win_prob, rank, 1):.3f}; '
     print(outputline)
 
 # Second, output the Limited results as a plot
@@ -348,7 +318,7 @@ y_axis = np.empty(161)
 fig, ax = plt.subplots()
 for rank in relevant_ranks:
     for i in range(0, 161):
-        y_axis[i] = expected_games_with_tier_protection(0.48 + i / 1000, rank, bestof)
+        y_axis[i] = expected_games_with_tier_protection(0.48 + i / 1000, rank, 1)
     ax.plot(x_axis, y_axis, label=rank.title())
     ax.set(xlabel='Game win rate', ylabel='Expected number of games',
            title='Expected games to reach the next rank in Limited')
@@ -358,15 +328,14 @@ for rank in relevant_ranks:
 fig.savefig("Expected_number_of_games_Limited.png")
 
 # Third, give the impact of tier protection
-rank = 'gold'
 for win_prob in [.5, .6]:
-    number_games_exact = expected_games_without_tier_protection(win_prob, rank, bestof)
+    number_games_exact = expected_games_without_tier_protection(win_prob, 'gold', 1)
     print(
-        f'Under Preseason 2 Limited progression WITHOUT tier protection, the exact E[games] to go from {rank.title()} '
-        f'to the next rank in best-of-{bestof} with a {win_prob * 100:.1f}% winrate is {number_games_exact:.3f}.')
+        f'Under Preseason 2 Limited progression WITHOUT tier protection, the exact E[games] to go from gold '
+        f'to the next rank in best-of-one with a {win_prob * 100:.1f}% winrate is {number_games_exact:.3f}.')
 
 # Next, let's get the Preseason 2 results for Constructed.
-steps_per_tier = {
+STEP_PER_TIER = {
     'bronze': 6,
     'silver': 6,
     'gold': 6,
