@@ -217,7 +217,7 @@ def expected_games_with_tier_protection(game_win_prob, rank, bestof):
         return x[0] * 2.5
 
 
-def run_simulation(game_win_prob, rank, bestof):
+def run_simulation(game_win_prob, _rank, _bestof):
     """Simulation approach, with tier protection. For bestof = 1, this approximates the expected number of games to
     reach the next rank in best-of-one. For bestof = 3, this approximates the expected number of games to reach the
     next rank in best-of-three. The approximation accurately takes into account that the expected number of games per
@@ -233,21 +233,20 @@ def run_simulation(game_win_prob, rank, bestof):
     multiplier = 1
     winrate = game_win_prob
     protection = 3
-    if bestof == 3:
+    if _bestof == 3:
         multiplier = 2
         winrate = game_win_prob * game_win_prob + 2 * game_win_prob * game_win_prob * (1 - game_win_prob)
         protection = 1
 
     games_per_simulation = []
-    for _ in range(50000):
+    for _ in range(5000):
         curr_tier = 4
         curr_step = 0
         curr_protection = 0
         match_count = 0
         curr_wins = 0
         curr_losses = 0
-        continue_playing = True
-        while continue_playing:
+        while True:
             match_count += 1
             if random.random() < winrate:
                 match_win = True
@@ -256,35 +255,35 @@ def run_simulation(game_win_prob, rank, bestof):
                 match_win = False
                 curr_losses += 1
             if (match_win and curr_tier == 1
-                    and curr_step + multiplier * steps_gained_with_win[rank] >= steps_per_tier[rank]):
+                    and curr_step + multiplier * steps_gained_with_win[_rank] >= steps_per_tier[_rank]):
                 # Advance to the next rank
-                continue_playing = False
+                break
             elif (match_win and curr_tier > 1
-                  and curr_step + multiplier * steps_gained_with_win[rank] >= steps_per_tier[rank]):
+                  and curr_step + multiplier * steps_gained_with_win[_rank] >= steps_per_tier[_rank]):
                 # Move to the next tier with protection
                 curr_tier -= 1
                 curr_protection = protection
-                curr_step = curr_step + multiplier * steps_gained_with_win[rank] - steps_per_tier[rank]
-            elif match_win and curr_step + multiplier * steps_gained_with_win[rank] < steps_per_tier[rank]:
+                curr_step = curr_step + multiplier * steps_gained_with_win[_rank] - steps_per_tier[_rank]
+            elif match_win and curr_step + multiplier * steps_gained_with_win[_rank] < steps_per_tier[_rank]:
                 # Move up steps in the same tier
-                curr_step += multiplier * steps_gained_with_win[rank]
+                curr_step += multiplier * steps_gained_with_win[_rank]
                 curr_protection -= 1
             elif ((not match_win)
-                  and curr_step < multiplier * steps_lost_with_loss[rank] and curr_protection <= 0 and curr_tier < 4):
+                  and curr_step < multiplier * steps_lost_with_loss[_rank] and curr_protection <= 0 and curr_tier < 4):
                 # Fall back a tier
-                curr_step = steps_per_tier[rank] - multiplier * steps_lost_with_loss[rank]
+                curr_step = steps_per_tier[_rank] - multiplier * steps_lost_with_loss[_rank]
                 curr_tier += 1
-            elif (not match_win) and curr_step < multiplier * steps_lost_with_loss[rank] and curr_protection > 0:
+            elif (not match_win) and curr_step < multiplier * steps_lost_with_loss[_rank] and curr_protection > 0:
                 # Remain at the start of the tier with reduced protection
                 curr_protection -= 1
                 curr_step = 0
-            elif (not match_win) and curr_step >= multiplier * steps_lost_with_loss[rank]:
+            elif (not match_win) and curr_step >= multiplier * steps_lost_with_loss[_rank]:
                 # Move down steps in the same tier
-                curr_step -= multiplier * steps_lost_with_loss[rank]
+                curr_step -= multiplier * steps_lost_with_loss[_rank]
                 curr_protection -= 1
-        if bestof == 1:
+        if _bestof == 1:
             games_per_simulation.append(match_count)
-        elif bestof == 3:
+        elif _bestof == 3:
             games_per_match_won = (2 * game_win_prob * game_win_prob + 3 * 2 * game_win_prob * game_win_prob * (
                     1 - game_win_prob)) / winrate
             games_per_match_lost = (2 * (1 - game_win_prob) * (1 - game_win_prob) + 3 * 2 * (1 - game_win_prob) * (
@@ -375,17 +374,17 @@ steps_per_tier = {
     'diamond': 6
 }
 
-for rank in relevant_ranks:
+for _rank in relevant_ranks:
 
     # First, output the Constructed results as semicolon separated values
     win_probs = [0.45, 0.5, 0.52, 0.54, 0.56, 0.6, 0.62, 0.64, 0.66, 0.68, 0.7, 0.75, 0.8]
-    print(f'\nCONSTRUCTED win_prob in rank {rank}; bo1; bo3; bo1 sim check; bo3 exact check')
+    print(f'\nCONSTRUCTED win_prob in rank {_rank}; bo1; bo3; bo1 sim check; bo3 exact check')
     for win_prob in win_probs:
         outputline = f'{win_prob:.3f}; '
-        outputline += f'{expected_games_with_tier_protection(win_prob, rank, 1):.3f}; '
-        outputline += f'{run_simulation(win_prob, rank, 3):.3f}; '
-        outputline += f'{run_simulation(win_prob, rank, 1):.3f}; '
-        outputline += f'{expected_games_with_tier_protection(win_prob, rank, 3):.3f}'
+        outputline += f'{expected_games_with_tier_protection(win_prob, _rank, 1):.3f}; '
+        outputline += f'{run_simulation(win_prob, _rank, 3):.3f}; '
+        outputline += f'{run_simulation(win_prob, _rank, 1):.3f}; '
+        outputline += f'{expected_games_with_tier_protection(win_prob, _rank, 3):.3f}'
         print(outputline)
 
     # Second, output the Constructed results as a plot
@@ -393,15 +392,15 @@ for rank in relevant_ranks:
     y_axis = np.empty(17)
     fig, ax = plt.subplots()
     for i in range(0, 17):
-        y_axis[i] = expected_games_with_tier_protection(0.48 + i / 100, rank, 1)
+        y_axis[i] = expected_games_with_tier_protection(0.48 + i / 100, _rank, 1)
     ax.plot(x_axis, y_axis, label='best-of-1')
     for i in range(0, 17):
-        y_axis[i] = run_simulation(0.48 + i / 100, rank, 3)
+        y_axis[i] = run_simulation(0.48 + i / 100, _rank, 3)
     ax.plot(x_axis, y_axis, label='best-of-3')
 
     ax.set(xlabel='Game win rate', ylabel='Expected number of games',
-           title=f'Expected games from {rank.title()} to the next rank in Constructed')
+           title=f'Expected games from {_rank.title()} to the next rank in Constructed')
     ax.set_xticklabels(['{:.0%}'.format(x) for x in ax.get_xticks()])
     ax.grid()
     plt.legend()
-    fig.savefig(f'Expected_number_of_games_Constructed_{rank.title()}.png')
+    fig.savefig(f'Expected_number_of_games_Constructed_{_rank.title()}.png')
